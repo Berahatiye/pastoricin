@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Song Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .song {
+            margin-bottom: 30px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 20px;
+        }
+        .section {
+            margin: 15px 0;
+        }
+        .section-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .line {
+            margin: 5px 0;
+        }
+        .chords {
+            color: #007bff;
+            font-weight: bold;
+            margin-right: 10px;
+            display: inline-block;
+            min-width: 100px;
+        }
+        .lyric {
+            white-space: pre-wrap;
+        }
+        .controls {
+            margin: 20px 0;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 5px;
+        }
+        .search {
+            margin: 10px 0;
+            padding: 8px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <h1>Song Viewer</h1>
+    
+    <div class="controls">
+        <input type="text" id="search-input" class="search" placeholder="Search songs...">
+        
+        <label for="song-select">Select a song:</label>
+        <select id="song-select">
+            <option value="">-- Select a song --</option>
+        </select>
+    </div>
+    
+    <div id="song-container"></div>
+
+    <script>
+        // Load song data
+        let allSongs = [];
+        
+        fetch('./songs_data.json')
+            .then(response => response.json())
+            .then(songs => {
+                allSongs = songs;
+                
+                // Populate dropdown
+                const select = document.getElementById('song-select');
+                songs.forEach((song, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = `${song.hymn_number}: ${song.title}`;
+                    select.appendChild(option);
+                });
+                
+                // Handle song selection
+                select.addEventListener('change', function() {
+                    if (this.value === '') {
+                        document.getElementById('song-container').innerHTML = '';
+                        return;
+                    }
+                    
+                    const song = songs[this.value];
+                    displaySong(song);
+                });
+                
+                // Handle search
+                const searchInput = document.getElementById('search-input');
+                searchInput.addEventListener('input', function() {
+                    const searchTerm = this.value.toLowerCase();
+                    const select = document.getElementById('song-select');
+                    
+                    // Clear dropdown
+                    select.innerHTML = '<option value="">-- Select a song --</option>';
+                    
+                    // Filter and repopulate
+                    allSongs.forEach((song, index) => {
+                        if (song.title.toLowerCase().includes(searchTerm) || 
+                            song.hymn_number.includes(searchTerm)) {
+                            const option = document.createElement('option');
+                            option.value = index;
+                            option.textContent = `${song.hymn_number}: ${song.title}`;
+                            select.appendChild(option);
+                        }
+                    });
+                });
+            })
+            .catch(error => {
+                console.error('Error loading songs:', error);
+                document.getElementById('song-container').innerHTML = 
+                    '<p>Error loading songs. Make sure songs_data.json is in the same directory.</p>';
+            });
+
+        function displaySong(song) {
+            const container = document.getElementById('song-container');
+            
+            let html = `
+                <div class="song">
+                    <h2>${song.title} (Hymn #${song.hymn_number})</h2>
+                    <p><strong>Key:</strong> ${song.key}</p>
+                    <p><strong>Author:</strong> ${song.author}</p>
+            `;
+            
+            song.sections.forEach(section => {
+                html += `
+                    <div class="section">
+                        <div class="section-name">${section.section_name}</div>
+                `;
+                
+                section.lines.forEach(line => {
+                    html += `
+                        <div class="line">
+                            <span class="chords">${line.chords.join(' ')}</span>
+                            <span class="lyric">${line.lyric}</span>
+                        </div>
+                    `;
+                });
+                
+                html += `</div>`;
+            });
+            
+            html += `</div>`;
+            container.innerHTML = html;
+        }
+    </script>
+
+    <script>
+        // Add this to your HTML file
+navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(stream => {
+        const audioContext = new AudioContext();
+        const microphone = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        microphone.connect(analyser);
+        
+        // Add your pitch detection logic here
+        console.log("Microphone access granted");
+    })
+    .catch(err => {
+        console.error('Error accessing microphone:', err);
+    });
+    </script>
+
+
+
+</body>
+</html>
