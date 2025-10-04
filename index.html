@@ -3,176 +3,267 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Song Viewer</title>
+    <title>Chord-Along: Interactive Guitar Helper</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation; /* Improves mobile responsiveness */
         }
-        .song {
-            margin-bottom: 30px;
-            border-bottom: 1px solid #ccc;
-            padding-bottom: 20px;
+        .lyric-line {
+            transition: all 0.3s ease-in-out;
         }
-        .section {
-            margin: 15px 0;
+        .active-chord {
+            transform: scale(1.05);
+            background-color: #4f46e5; /* Indigo 600 */
+            color: white;
         }
-        .section-name {
-            font-weight: bold;
-            color: #333;
-            margin-bottom: 5px;
+        .note-indicator {
+            transition: background-color 0.2s ease, transform 0.2s ease;
         }
-        .line {
-            margin: 5px 0;
-        }
-        .chords {
-            color: #007bff;
-            font-weight: bold;
-            margin-right: 10px;
-            display: inline-block;
-            min-width: 100px;
-        }
-        .lyric {
-            white-space: pre-wrap;
-        }
-        .controls {
-            margin: 20px 0;
-            padding: 10px;
-            background: #f5f5f5;
-            border-radius: 5px;
-        }
-        .search {
-            margin: 10px 0;
-            padding: 8px;
-            width: 100%;
-            box-sizing: border-box;
+        .note-hit {
+            background-color: #10b981; /* Emerald 500 */
+            transform: scale(1.1);
         }
     </style>
 </head>
-<body>
-    <h1>Song Viewer</h1>
-    
-    <div class="controls">
-        <input type="text" id="search-input" class="search" placeholder="Search songs...">
+<body class="bg-gray-900 text-gray-200 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <!-- Main App Container -->
+    <div id="app-container" class="w-full max-w-2xl bg-gray-800 rounded-2xl shadow-2xl p-6 md:p-8">
         
-        <label for="song-select">Select a song:</label>
-        <select id="song-select">
-            <option value="">-- Select a song --</option>
-        </select>
+        <header class="text-center mb-6 border-b border-gray-700 pb-4">
+            <h1 class="text-3xl md:text-4xl font-bold text-white">Chord-Along</h1>
+            <p class="text-indigo-400 mt-1">Play along with your guitar!</p>
+        </header>
+
+        <!-- Song Information -->
+        <div id="song-info" class="text-center mb-6">
+            <h2 id="song-title" class="text-2xl font-semibold text-white">Twinkle Twinkle Little Star</h2>
+            <p id="song-artist" class="text-gray-400">Traditional</p>
+        </div>
+
+        <!-- Microphone Controls & Status -->
+        <div id="controls" class="flex flex-col items-center justify-center mb-6 p-4 bg-gray-700/50 rounded-lg">
+            <button id="startButton" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-indigo-500/50">
+                Start Listening
+            </button>
+            <div id="status" class="mt-4 text-sm text-center text-gray-400 h-10 flex items-center justify-center">
+                Click "Start Listening" and allow microphone access.
+            </div>
+        </div>
+
+        <!-- Real-time Note Indicator -->
+        <div class="flex items-center justify-center space-x-2 mb-6 h-16">
+            <div id="note-indicator" class="note-indicator w-24 h-24 bg-gray-700 rounded-full flex items-center justify-center text-4xl font-bold transition-all duration-200">
+                --
+            </div>
+             <div class="text-center">
+                <div id="pitch-display" class="text-lg font-semibold text-indigo-300">- Hz</div>
+                <div class="text-xs text-gray-500">Pitch</div>
+            </div>
+        </div>
+        
+        <!-- Lyrics and Chords Display -->
+        <div id="lyrics-container" class="bg-gray-900/70 p-4 md:p-6 rounded-lg text-center space-y-4 overflow-y-auto max-h-[40vh]">
+            <!-- Song content will be dynamically inserted here -->
+        </div>
+
     </div>
     
-    <div id="song-container"></div>
+    <!-- Pitch detection library -->
+    <script src="https://cdn.jsdelivr.net/npm/pitchy@4.1.0/dist/pitchy.min.js"></script>
 
     <script>
-        // Load song data
-        let allSongs = [];
-        
-        fetch('./songs_data.json')
-            .then(response => response.json())
-            .then(songs => {
-                allSongs = songs;
-                
-                // Populate dropdown
-                const select = document.getElementById('song-select');
-                songs.forEach((song, index) => {
-                    const option = document.createElement('option');
-                    option.value = index;
-                    option.textContent = `${song.hymn_number}: ${song.title}`;
-                    select.appendChild(option);
-                });
-                
-                // Handle song selection
-                select.addEventListener('change', function() {
-                    if (this.value === '') {
-                        document.getElementById('song-container').innerHTML = '';
-                        return;
-                    }
-                    
-                    const song = songs[this.value];
-                    displaySong(song);
-                });
-                
-                // Handle search
-                const searchInput = document.getElementById('search-input');
-                searchInput.addEventListener('input', function() {
-                    const searchTerm = this.value.toLowerCase();
-                    const select = document.getElementById('song-select');
-                    
-                    // Clear dropdown
-                    select.innerHTML = '<option value="">-- Select a song --</option>';
-                    
-                    // Filter and repopulate
-                    allSongs.forEach((song, index) => {
-                        if (song.title.toLowerCase().includes(searchTerm) || 
-                            song.hymn_number.includes(searchTerm)) {
-                            const option = document.createElement('option');
-                            option.value = index;
-                            option.textContent = `${song.hymn_number}: ${song.title}`;
-                            select.appendChild(option);
-                        }
-                    });
-                });
-            })
-            .catch(error => {
-                console.error('Error loading songs:', error);
-                document.getElementById('song-container').innerHTML = 
-                    '<p>Error loading songs. Make sure songs_data.json is in the same directory.</p>';
-            });
+        // DOM Elements
+        const startButton = document.getElementById('startButton');
+        const statusEl = document.getElementById('status');
+        const lyricsContainer = document.getElementById('lyrics-container');
+        const noteIndicator = document.getElementById('note-indicator');
+        const pitchDisplay = document.getElementById('pitch-display');
 
-        function displaySong(song) {
-            const container = document.getElementById('song-container');
-            
-            let html = `
-                <div class="song">
-                    <h2>${song.title} (Hymn #${song.hymn_number})</h2>
-                    <p><strong>Key:</strong> ${song.key}</p>
-                    <p><strong>Author:</strong> ${song.author}</p>
-            `;
-            
-            song.sections.forEach(section => {
-                html += `
-                    <div class="section">
-                        <div class="section-name">${section.section_name}</div>
+        // App State
+        let audioContext;
+        let analyserNode;
+        let pitchy;
+        let isListening = false;
+        let currentLineIndex = 0;
+        let noteMatchCount = 0;
+
+        // --- Song Data ---
+        const song = {
+            title: "Wonderwall (Chorus)",
+            artist: "Oasis",
+            lyrics: [
+                { chord: 'Em', text: "Because maybe" },
+                { chord: 'G', text: "You're gonna be the one that saves me" },
+                { chord: 'D', text: "And after all" },
+                { chord: 'A', text: "You're my wonderwall" }
+            ]
+        };
+
+        const chordNotes = {
+            'Em': ['E', 'G', 'B'],
+            'G': ['G', 'B', 'D'],
+            'D': ['D', 'F#', 'A'],
+            'A': ['A', 'C#', 'E']
+        };
+        
+        // --- Core Functions ---
+
+        /**
+         * Renders the song lyrics and chords to the screen.
+         */
+        function renderSong() {
+            document.getElementById('song-title').innerText = song.title;
+            document.getElementById('song-artist').innerText = song.artist;
+            lyricsContainer.innerHTML = '';
+            song.lyrics.forEach((line, index) => {
+                const lineEl = document.createElement('div');
+                lineEl.id = `line-${index}`;
+                lineEl.classList.add('lyric-line', 'p-4', 'rounded-lg', 'bg-gray-800', 'shadow-md');
+                lineEl.innerHTML = `
+                    <div class="font-bold text-2xl text-yellow-400 mb-1">${line.chord}</div>
+                    <div class="text-lg text-gray-300">${line.text}</div>
                 `;
-                
-                section.lines.forEach(line => {
-                    html += `
-                        <div class="line">
-                            <span class="chords">${line.chords.join(' ')}</span>
-                            <span class="lyric">${line.lyric}</span>
-                        </div>
-                    `;
-                });
-                
-                html += `</div>`;
+                lyricsContainer.appendChild(lineEl);
             });
-            
-            html += `</div>`;
-            container.innerHTML = html;
+            highlightCurrentLine();
         }
-    </script>
 
-    <script>
-        // Add this to your HTML file
-navigator.mediaDevices.getUserMedia({ audio: true })
-    .then(stream => {
-        const audioContext = new AudioContext();
-        const microphone = audioContext.createMediaStreamSource(stream);
-        const analyser = audioContext.createAnalyser();
-        microphone.connect(analyser);
+        /**
+         * Highlights the current line the user should be playing.
+         */
+        function highlightCurrentLine() {
+            document.querySelectorAll('.lyric-line').forEach((el, index) => {
+                el.classList.remove('active-chord');
+                if (index === currentLineIndex) {
+                    el.classList.add('active-chord');
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
+        }
+
+        /**
+         * Initializes audio context and starts listening for microphone input.
+         */
+        async function startListening() {
+            if (isListening) return;
+
+            try {
+                statusEl.textContent = "Initializing Audio...";
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                pitchy = new Pitchy.Pitchy(audioContext);
+                
+                const sourceNode = audioContext.createMediaStreamSource(stream);
+                sourceNode.connect(pitchy.analyserNode);
+
+                isListening = true;
+                startButton.textContent = 'Stop Listening';
+                startButton.classList.replace('bg-indigo-600', 'bg-red-600');
+                startButton.classList.replace('hover:bg-indigo-700', 'hover:bg-red-700');
+                statusEl.textContent = "Listening... Play the highlighted chord!";
+                
+                updatePitch();
+
+            } catch (err) {
+                statusEl.textContent = "Error: Could not access microphone. Please grant permission.";
+                console.error("Microphone access error:", err);
+            }
+        }
         
-        // Add your pitch detection logic here
-        console.log("Microphone access granted");
-    })
-    .catch(err => {
-        console.error('Error accessing microphone:', err);
-    });
+        /**
+         * Stops the audio processing.
+         */
+        function stopListening() {
+            if (!isListening || !audioContext) return;
+            
+            audioContext.close();
+            isListening = false;
+            startButton.textContent = 'Start Listening';
+            startButton.classList.replace('bg-red-600', 'bg-indigo-600');
+            startButton.classList.replace('hover:bg-red-700', 'hover:bg-indigo-700');
+            statusEl.textContent = 'Click "Start Listening" to begin.';
+            noteIndicator.textContent = '--';
+            pitchDisplay.textContent = '- Hz';
+        }
+
+
+        /**
+         * Main loop to get pitch and update the UI.
+         */
+        function updatePitch() {
+            if (!isListening) return;
+
+            const [pitch, clarity] = pitchy.getPitch();
+
+            if (clarity > 0.95) { // Only process clear notes
+                const note = Pitchy.PitchDetector.noteFromPitch(pitch);
+                const noteName = note.replace(/\d/g, ''); // Remove octave number
+                
+                noteIndicator.textContent = noteName;
+                pitchDisplay.textContent = `${Math.round(pitch)} Hz`;
+                
+                checkNoteMatch(noteName);
+
+            } else {
+                 noteIndicator.classList.remove('note-hit');
+            }
+
+            requestAnimationFrame(updatePitch);
+        }
+        
+        /**
+         * Checks if the detected note matches the current chord.
+         * @param {string} noteName - The name of the detected note (e.g., 'C', 'G#').
+         */
+        function checkNoteMatch(noteName) {
+            const currentChord = song.lyrics[currentLineIndex].chord;
+            const requiredNotes = chordNotes[currentChord];
+
+            if (requiredNotes && requiredNotes.includes(noteName)) {
+                noteIndicator.classList.add('note-hit');
+                noteMatchCount++;
+                
+                // Advance to the next chord after a few correct notes are detected
+                if (noteMatchCount > 5) {
+                    moveToNextLine();
+                }
+
+            } else {
+                noteIndicator.classList.remove('note-hit');
+                noteMatchCount = Math.max(0, noteMatchCount -1); // Slowly decay counter
+            }
+        }
+        
+        /**
+         * Advances to the next line in the song.
+         */
+        function moveToNextLine() {
+            noteMatchCount = 0; // Reset counter
+            currentLineIndex++;
+            if (currentLineIndex >= song.lyrics.length) {
+                currentLineIndex = 0; // Loop back to the start
+            }
+            statusEl.textContent = `Great! Now play a ${song.lyrics[currentLineIndex].chord} chord.`;
+            highlightCurrentLine();
+        }
+
+        // --- Event Listeners ---
+        startButton.addEventListener('click', () => {
+            if (isListening) {
+                stopListening();
+            } else {
+                startListening();
+            }
+        });
+
+        // Initial setup on page load
+        window.addEventListener('load', renderSong);
+
     </script>
-
-
-
 </body>
 </html>
